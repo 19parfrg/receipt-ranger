@@ -1,0 +1,35 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Stage only the shippable files (everything except git/CI metadata, mobile code, agent configs).
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp landing.html _site/
+          # If there are any other assets like screenshots or logos, copy them here.
+
+      # Publish the production site to the root of the gh-pages branch.
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _site
+          clean: true

@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "ReceiptRanger",
+    "slug": "receipt-ranger-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.grant.receiptranger",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "ReceiptRanger requires access to your photo library to select receipt photos and screenshots for on-device OCR.",
+        "NSCameraUsageDescription": "ReceiptRanger requires access to your camera to capture receipts for on-device OCR.",
+        "NSPhotoLibraryAddUsageDescription": "ReceiptRanger requires access to save receipt documents to your library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#09090b",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ReceiptRanger requires access to your photo library to select receipt photos and screenshots.",
+          "cameraPermission": "ReceiptRanger requires access to your camera to capture receipts."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "ReceiptRanger requires access to your photo library to access and scan receipts.",
+          "savePhotosPermission": "ReceiptRanger requires access to your photo library to save receipts."
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReceiptRanger — Privacy-First Local Receipt Scanner & Expense Manager</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'glow-slow': 'glow 8s ease-in-out infinite',
+          },
+          keyframes: {
+            glow: {
+              '0%, 100%': { opacity: 0.3, transform: 'scale(1)' },
+              '50%': { opacity: 0.6, transform: 'scale(1.05)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar for sleek dark mode look */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020617;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans overflow-x-hidden relative">
+
+  <!-- Ambient Glow Effects -->
+  <div class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-violet-700/10 rounded-full blur-[120px] pointer-events-none -z-10 animate-glow-slow"></div>
+  <div class="absolute top-[800px] right-1/4 w-[600px] h-[600px] bg-indigo-700/10 rounded-full blur-[150px] pointer-events-none -z-10 animate-glow-slow" style="animation-delay: 2s;"></div>
+  <div class="absolute bottom-[600px] left-1/3 w-[500px] h-[500px] bg-fuchsia-700/10 rounded-full blur-[130px] pointer-events-none -z-10 animate-glow-slow" style="animation-delay: 4s;"></div>
+
+  <!-- Sticky Glassmorphism Navbar -->
+  <nav class="sticky top-0 z-50 w-full border-b border-slate-900 bg-slate-950/80 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <div class="flex items-center gap-2">
+          <div class="p-2 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-xl shadow-lg shadow-violet-500/20">
+            <i data-lucide="shield-check" class="w-6 h-6 text-white"></i>
+          </div>
+          <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
+            ReceiptRanger
+          </span>
+        </div>
+
+        <!-- Navigation Links (Desktop) -->
+        <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
+          <a href="#features" class="hover:text-violet-400 transition-colors">Features</a>
+          <a href="#security" class="hover:text-violet-400 transition-colors">Security</a>
+          <a href="#faq" class="hover:text-violet-400 transition-colors">FAQ</a>
+          <a href="#waitlist" class="hover:text-violet-400 transition-colors">Waitlist</a>
+        </div>
+
+        <!-- Call to Action -->
+        <div class="hidden md:flex items-center gap-4">
+          <a href="index.html" class="px-5 py-2 text-sm font-semibold text-white bg-slate-900 border border-slate-800 rounded-xl hover:border-slate-700 transition-all">
+            Launch Prototype
+          </a>
+          <a href="#waitlist" class="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl hover:from-violet-500 hover:to-indigo-500 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-violet-500/25">
+            Join Waitlist
+          </a>
+        </div>
+
+        <!-- Mobile Menu Button -->
+        <div class="md:hidden">
+          <button id="mobile-menu-toggle" class="p-2 text-slate-400 hover:text-white focus:outline-none">
+            <i data-lucide="menu" id="menu-icon" class="w-6 h-6"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Navigation Menu (Drawer) -->
+    <div id="mobile-menu" class="hidden md:hidden border-b border-slate-900 bg-slate-950/95 backdrop-blur-lg px-4 pt-2 pb-6 space-y-3">
+      <a href="#features" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-400 hover:text-white hover:bg-slate-900 transition-all">Features</a>
+      <a href="#security" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-400 hover:text-white hover:bg-slate-900 transition-all">Security</a>
+      <a href="#faq" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-400 hover:text-white hover:bg-slate-900 transition-all">FAQ</a>
+      <a href="#waitlist" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-400 hover:text-white hover:bg-slate-900 transition-all">Waitlist</a>
+      <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-900">
+        <a href="index.html" class="w-full text-center px-4 py-2.5 text-sm font-semibold text-white bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition-all">
+          Prototype
+        </a>
+        <a href="#waitlist" class="w-full text-center px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl hover:from-violet-500 hover:to-indigo-500 transition-all">
+          Waitlist
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24 md:pt-24 md:pb-32 overflow-hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+      
+      <!-- Text Area -->
+      <div class="lg:col-span-7 space-y-8 text-left">
+        <!-- Badge -->
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 text-xs font-semibold tracking-wide uppercase">
+          <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+          100% On-Device OCR
+        </div>
+        
+        <!-- Heading -->
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight">
+          Your Receipts.<br class="hidden sm:inline">
+          Your Device.<br>
+          <span class="bg-gradient-to-r from-violet-400 via-indigo-300 to-fuchsia-400 bg-clip-text text-transparent">
+            Total Privacy.
+          </span>
+        </h1>
+        
+        <!-- Subheading -->
+        <p class="text-lg text-slate-400 max-w-2xl leading-relaxed">
+          ReceiptRanger is a local-first receipt scanner and expense manager for iOS. 
+          Extract merchants, items, tax, and totals instantly using Apple's Neural Engine. 
+          Your financial database never leaves your phone.
+        </p>
+
+        <!-- Waitlist Input Box -->
+        <div id="hero-waitlist-container" class="max-w-md">
+          <!-- Form will be dynamically updated based on localStorage waitlist state -->
+          <form id="hero-waitlist-form" class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-grow">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                <i data-lucide="mail" class="w-5 h-5"></i>
+              </span>
+              <input type="email" required placeholder="Enter your email address" class="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all text-sm">
+            </div>
+            <button type="submit" class="px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2 text-sm whitespace-nowrap active:scale-[0.98]">
+              <span>Join Waitlist</span>
+              <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+          </form>
+          <div id="hero-waitlist-success" class="hidden p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 flex items-center gap-3">
+            <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i>
+            <div>
+              <p class="font-semibold text-sm">You're on the list!</p>
+              <p class="text-xs text-emerald-400/80">We'll notify you as soon as the iOS beta launches.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Social Proof Stats -->
+        <div class="pt-4 grid grid-cols-3 gap-6 border-t border-slate-900 max-w-lg">
+          <div>
+            <p class="text-2xl sm:text-3xl font-bold text-white">0ms</p>
+            <p class="text-xs text-slate-500 mt-1 uppercase font-semibold tracking-wider">Cloud Storage</p>
+          </div>
+          <div>
+            <p class="text-2xl sm:text-3xl font-bold text-white">100%</p>
+            <p class="text-xs text-slate-500 mt-1 uppercase font-semibold tracking-wider">Local Processing</p>
+          </div>
+          <div>
+            <p class="text-2xl sm:text-3xl font-bold text-white">&lt; 1s</p>
+            <p class="text-xs text-slate-500 mt-1 uppercase font-semibold tracking-wider">OCR Capture Time</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Mockup Display Area -->
+      <div class="lg:col-span-5 relative flex justify-center lg:justify-end">
+        <!-- Decorative Glow Behind Phone -->
+        <div class="absolute inset-0 bg-gradient-to-tr from-violet-600/20 to-indigo-600/20 rounded-full filter blur-3xl opacity-60"></div>
+        
+        <!-- Phone Frame Mockup -->
+        <div class="relative w-[280px] sm:w-[320px] aspect-[9/19.5] bg-slate-950 border-[6px] border-slate-800 rounded-[48px] shadow-2xl overflow-hidden flex flex-col">
+          <!-- Speaker & Camera Notch -->
+          <div class="absolute top-0 left-1/2 -translate-x-1/2 h-6 w-32 bg-slate-800 rounded-b-2xl z-30 flex items-center justify-center">
+            <div class="w-12 h-1 bg-slate-900 rounded-full mb-1"></div>
+          </div>
+          
+          <!-- Mock Screen Content -->
+          <div class="flex-grow flex flex-col bg-slate-950 text-xs p-4 pt-10 select-none overflow-hidden relative">
+            <!-- App Header -->
+            <div class="flex justify-between items-center mb-4">
+              <div>
+                <p class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Inbox</p>
+                <h3 class="text-sm font-bold text-white">Recent Scans</h3>
+              </div>
+              <div class="p-1.5 bg-violet-600/20 rounded-lg text-violet-400">
+                <i data-lucide="scan" class="w-4 h-4"></i>
+              </div>
+            </div>
+
+            <!-- Scanning Mock State -->
+            <div class="p-3 bg-violet-600/10 border border-violet-500/30 rounded-xl mb-3 relative overflow-hidden animate-pulse">
+              <div class="flex justify-between items-center">
+                <div class="space-y-1.5 flex-grow">
+                  <div class="h-3 bg-violet-500/30 rounded w-2/3"></div>
+                  <div class="h-2 bg-violet-500/20 rounded w-1/2"></div>
+                </div>
+                <div class="h-4 bg-violet-500/40 rounded w-10"></div>
+              </div>
+              <!-- OCR Scanner progress simulation -->
+              <div class="w-full bg-slate-800 h-1 rounded-full mt-3 overflow-hidden">
+                <div class="bg-gradient-to-r from-violet-500 to-indigo-500 h-full w-[65%] rounded-full"></div>
+              </div>
+            </div>
+
+            <!-- Receipt Cards List -->
+            <div class="space-y-2.5 overflow-hidden flex-grow opacity-90">
+              <!-- Item 1 -->
+              <div class="p-3 bg-slate-900 border border-slate-800/80 rounded-xl flex justify-between items-center hover:border-slate-800 transition-colors">
+                <div class="space-y-1">
+                  <p class="font-semibold text-slate-200">Starbucks Coffee</p>
+                  <p class="text-[10px] text-slate-500">Today, 2:14 PM</p>
+                </div>
+                <div class="text-right">
+                  <p class="font-bold text-slate-200">$14.58</p>
+                  <span class="inline-block text-[8px] font-semibold bg-slate-800 border border-slate-700/50 rounded-full px-1.5 py-0.5 text-slate-400 mt-1">Food</span>
+                </div>
+              </div>
+              <!-- Item 2 -->
+              <div class="p-3 bg-slate-900 border border-slate-800/80 rounded-xl flex justify-between items-center">
+                <div class="space-y-1">
+                  <p class="font-semibold text-slate-200">Uber Trips</p>
+                  <p class="text-[10px] text-slate-500">Yesterday, 6:30 PM</p>
+                </div>
+                <div class="text-right">
+                  <p class="font-bold text-slate-200">$42.10</p>
+                  <span class="inline-block text-[8px] font-semibold bg-slate-800 border border-slate-700/50 rounded-full px-1.5 py-0.5 text-slate-400 mt-1">Travel</span>
+                </div>
+              </div>
+              <!-- Item 3 -->
+              <div class="p-3 bg-slate-900 border border-slate-800/80 rounded-xl flex justify-between items-center">
+                <div class="space-y-1">
+                  <p class="font-semibold text-slate-200">Office Depot</p>
+                  <p class="text-[10px] text-slate-500">Jun 4, 11:15 AM</p>
+                </div>
+                <div class="text-right">
+                  <p class="font-bold text-slate-200">$118.24</p>
+                  <span class="inline-block text-[8px] font-semibold bg-slate-800 border border-slate-700/50 rounded-full px-1.5 py-0.5 text-slate-400 mt-1">Supplies</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom App Navigation Bar -->
+            <div class="mt-4 pt-3 border-t border-slate-900 flex justify-around items-center text-slate-500 text-[10px]">
+              <div class="text-violet-500 flex flex-col items-center gap-1 font-semibold">
+                <i data-lucide="inbox" class="w-4 h-4"></i>
+                <span>Inbox</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <i data-lucide="folder-archive" class="w-4 h-4"></i>
+                <span>Archive</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <i data-lucide="settings" class="w-4 h-4"></i>
+                <span>Settings</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </section>
+
+  <!-- Core Pillars (Value Proposition) Section -->
+  <section id="features" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-slate-900">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight">Designed for privacy, engineered for speed</h2>
+      <p class="text-slate-400">ReceiptRanger replaces clumsy spreadsheets and insecure cloud scanner apps with a robust, lightning-fast on-device database.</p>
+    </div>
+
+    <!-- 3-Column Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <!-- Card 1 -->
+      <div class="p-8 rounded-2xl border border-slate-800/80 bg-slate-900/30 backdrop-blur-sm space-y-6 hover:border-slate-700 transition-all group">
+        <div class="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/30 text-violet-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <i data-lucide="cpu" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-xl font-bold">100% Local OCR Engine</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          Extract text, amounts, items, and tax structures automatically. 
+          Scanning runs completely on Apple's Neural Engine. No network connection required.
+        </p>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="p-8 rounded-2xl border border-slate-800/80 bg-slate-900/30 backdrop-blur-sm space-y-6 hover:border-slate-700 transition-all group">
+        <div class="w-12 h-12 rounded-xl bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <i data-lucide="cloud-off" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-xl font-bold">Zero Cloud Storage</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          We have no servers to breach. Your files and structured expense details are stored inside the encrypted sandbox directory of your own iOS device.
+        </p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="p-8 rounded-2xl border border-slate-800/80 bg-slate-900/30 backdrop-blur-sm space-y-6 hover:border-slate-700 transition-all group">
+        <div class="w-12 h-12 rounded-xl bg-fuchsia-600/10 border border-fuchsia-500/30 text-fuchsia-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-xl font-bold">Instant CSV Export</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          Generate perfectly structured spreadsheet files directly inside the browser or the app on demand. Perfect for tax filing, business accounting, and expenses.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security Guarantee Section -->
+  <section id="security" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="relative rounded-3xl border border-emerald-500/30 bg-emerald-950/10 p-8 sm:p-12 overflow-hidden">
+      <!-- Glow behind card -->
+      <div class="absolute -top-12 -right-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
+        <div class="space-y-4 max-w-2xl">
+          <div class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold tracking-wide uppercase">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+            ReceiptRanger Security Guarantee
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Zero Servers. Zero Trackers. Zero Risk.</h2>
+          <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+            ReceiptRanger uses Apple Secure Enclave APIs to secure your localized database. 
+            Unlike traditional scanning platforms, we do not require a user account, email login, 
+            or third-party trackers to manage your receipts. You own 100% of your data.
+          </p>
+        </div>
+        <div class="flex-shrink-0">
+          <div class="p-6 bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col items-center text-center">
+            <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl mb-3">
+              <i data-lucide="lock" class="w-6 h-6"></i>
+            </div>
+            <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Encryption Status</p>
+            <p class="text-base font-bold text-white mt-1">AES-256 On-Device</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive FAQ Section -->
+  <section id="faq" class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+    <div class="text-center space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight">Frequently Asked Questions</h2>
+      <p class="text-slate-400">Everything you need to know about the privacy-first receipt engine.</p>
+    </div>
+
+    <!-- FAQ Accordion -->
+    <div class="space-y-4">
+      
+      <!-- FAQ 1 -->
+      <div class="faq-item border border-slate-900 rounded-2xl bg-slate-900/30 overflow-hidden transition-all duration-300">
+        <button class="faq-trigger flex items-center justify-between w-full p-5 text-left text-slate-200 hover:text-white font-semibold transition-colors focus:outline-none">
+          <span>Does ReceiptRanger upload my receipts to a server?</span>
+          <div class="p-1.5 rounded-lg bg-slate-800 text-slate-400 transition-colors">
+            <i data-lucide="chevron-down" class="faq-icon w-4 h-4 transition-transform duration-300"></i>
+          </div>
+        </button>
+        <div class="faq-content grid grid-rows-[0fr] transition-all duration-300 ease-in-out">
+          <div class="overflow-hidden">
+            <div class="px-5 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-900/50 pt-3">
+              No. ReceiptRanger runs its OCR processing pipeline entirely on your local iOS device. No images, text, or expense data ever leave your phone.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 2 -->
+      <div class="faq-item border border-slate-900 rounded-2xl bg-slate-900/30 overflow-hidden transition-all duration-300">
+        <button class="faq-trigger flex items-center justify-between w-full p-5 text-left text-slate-200 hover:text-white font-semibold transition-colors focus:outline-none">
+          <span>How does the OCR engine work without internet?</span>
+          <div class="p-1.5 rounded-lg bg-slate-800 text-slate-400 transition-colors">
+            <i data-lucide="chevron-down" class="faq-icon w-4 h-4 transition-transform duration-300"></i>
+          </div>
+        </button>
+        <div class="faq-content grid grid-rows-[0fr] transition-all duration-300 ease-in-out">
+          <div class="overflow-hidden">
+            <div class="px-5 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-900/50 pt-3">
+              We leverage Apple's Vision framework and CoreML models that execute natively on your iPhone's Neural Engine. This enables offline receipt reading that is faster and more secure than typical cloud-based OCR APIs.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 3 -->
+      <div class="faq-item border border-slate-900 rounded-2xl bg-slate-900/30 overflow-hidden transition-all duration-300">
+        <button class="faq-trigger flex items-center justify-between w-full p-5 text-left text-slate-200 hover:text-white font-semibold transition-colors focus:outline-none">
+          <span>What formats are supported for exporting data?</span>
+          <div class="p-1.5 rounded-lg bg-slate-800 text-slate-400 transition-colors">
+            <i data-lucide="chevron-down" class="faq-icon w-4 h-4 transition-transform duration-300"></i>
+          </div>
+        </button>
+        <div class="faq-content grid grid-rows-[0fr] transition-all duration-300 ease-in-out">
+          <div class="overflow-hidden">
+            <div class="px-5 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-900/50 pt-3">
+              ReceiptRanger exports standard CSV (Comma-Separated Values) files, which can be instantly opened in Microsoft Excel, Google Sheets, Apple Numbers, and modern bookkeeping applications like QuickBooks or Wave.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 4 -->
+      <div class="faq-item border border-slate-900 rounded-2xl bg-slate-900/30 overflow-hidden transition-all duration-300">
+        <button class="faq-trigger flex items-center justify-between w-full p-5 text-left text-slate-200 hover:text-white font-semibold transition-colors focus:outline-none">
+          <span>How much does ReceiptRanger cost?</span>
+          <div class="p-1.5 rounded-lg bg-slate-800 text-slate-400 transition-colors">
+            <i data-lucide="chevron-down" class="faq-icon w-4 h-4 transition-transform duration-300"></i>
+          </div>
+        </button>
+        <div class="faq-content grid grid-rows-[0fr] transition-all duration-300 ease-in-out">
+          <div class="overflow-hidden">
+            <div class="px-5 pb-5 text-slate-400 text-sm leading-relaxed border-t border-slate-900/50 pt-3">
+              Since we run zero backend servers to store or analyze your receipt data, we don't have monthly hosting bills. ReceiptRanger is a one-time purchase with lifetime access. No subscriptions, no ads, no paywalls.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Bottom Waitlist CTA Section -->
+  <section id="waitlist" class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 mb-24">
+    <div class="p-8 sm:p-12 rounded-3xl border border-slate-900 bg-slate-900/20 backdrop-blur-md text-center space-y-8 relative">
+      <div class="absolute -bottom-6 -left-6 w-32 h-32 bg-fuchsia-600/10 rounded-full blur-2xl pointer-events-none"></div>
+      
+      <div class="max-w-2xl mx-auto space-y-4">
+        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight">Secure your spot in the iOS Beta</h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          Get early access to ReceiptRanger. The first 1,000 users will receive a free lifetime license key when the app launches on the App Store.
+        </p>
+      </div>
+
+      <div id="footer-waitlist-container" class="max-w-md mx-auto">
+        <form id="footer-waitlist-form" class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-grow">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+              <i data-lucide="mail" class="w-5 h-5"></i>
+            </span>
+            <input type="email" required placeholder="Enter your email address" class="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all text-sm">
+          </div>
+          <button type="submit" class="px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2 text-sm whitespace-nowrap active:scale-[0.98]">
+            <span>Join Waitlist</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+        </form>
+        <div id="footer-waitlist-success" class="hidden p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 flex items-center gap-3">
+          <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i>
+          <div class="text-left">
+            <p class="font-semibold text-sm">You're on the list!</p>
+            <p class="text-xs text-emerald-400/80">We'll notify you as soon as the iOS beta launches.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 py-12 text-slate-500 text-sm bg-slate-950">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex items-center gap-2">
+        <div class="p-1.5 bg-slate-900 rounded-lg text-slate-400 border border-slate-800">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+        </div>
+        <span class="font-semibold text-slate-400">ReceiptRanger</span>
+      </div>
+      
+      <p class="text-xs">&copy; 2026 ReceiptRanger. All rights reserved. 100% On-Device Protection.</p>
+      
+      <div class="flex gap-6 text-xs text-slate-500">
+        <a href="index.html" class="hover:text-slate-300">Web Prototype</a>
+        <a href="#" class="hover:text-slate-300">Privacy Policy</a>
+        <a href="#" class="hover:text-slate-300">Terms of Service</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Mobile Menu Toggle
+    const mobileMenuToggleBtn = document.getElementById('mobile-menu-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const menuIcon = document.getElementById('menu-icon');
+
+    mobileMenuToggleBtn.addEventListener('click', () => {
+      const isHidden = mobileMenu.classList.contains('hidden');
+      if (isHidden) {
+        mobileMenu.classList.remove('hidden');
+        menuIcon.setAttribute('data-lucide', 'x');
+      } else {
+        mobileMenu.classList.add('hidden');
+        menuIcon.setAttribute('data-lucide', 'menu');
+      }
+      lucide.createIcons();
+    });
+
+    // Close mobile menu when a link is clicked
+    mobileMenu.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        mobileMenu.classList.add('hidden');
+        menuIcon.setAttribute('data-lucide', 'menu');
+        lucide.createIcons();
+      });
+    });
+
+    // FAQ Accordion Trigger
+    document.querySelectorAll('.faq-trigger').forEach(trigger => {
+      trigger.addEventListener('click', () => {
+        const item = trigger.closest('.faq-item');
+        const content = item.querySelector('.faq-content');
+        const icon = item.querySelector('.faq-icon');
+        const isOpen = content.classList.contains('grid-rows-[1fr]');
+        
+        // Close all other FAQs
+        document.querySelectorAll('.faq-content').forEach(c => {
+          c.classList.remove('grid-rows-[1fr]');
+          c.classList.add('grid-rows-[0fr]');
+        });
+        document.querySelectorAll('.faq-icon').forEach(i => {
+          i.classList.remove('rotate-180');
+        });
+        
+        // Toggle current FAQ
+        if (!isOpen) {
+          content.classList.remove('grid-rows-[0fr]');
+          content.classList.add('grid-rows-[1fr]');
+          icon.classList.add('rotate-180');
+        }
+      });
+    });
+
+    // Waitlist Form LocalStorage Sync & Control
+    const LOCAL_STORAGE_KEY = 'receipt_ranger_waitlist_email';
+    
+    const heroForm = document.getElementById('hero-waitlist-form');
+    const heroSuccess = document.getElementById('hero-waitlist-success');
+    const footerForm = document.getElementById('footer-waitlist-form');
+    const footerSuccess = document.getElementById('footer-waitlist-success');
+
+    function checkWaitlistStatus() {
+      const savedEmail = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (savedEmail) {
+        if (heroForm) heroForm.classList.add('hidden');
+        if (heroSuccess) heroSuccess.classList.remove('hidden');
+        if (footerForm) footerForm.classList.add('hidden');
+        if (footerSuccess) footerSuccess.classList.remove('hidden');
+      }
+    }
+
+    function handleWaitlistSubmit(event) {
+      event.preventDefault();
+      const inputEl = event.currentTarget.querySelector('input[type="email"]');
+      const submitBtn = event.currentTarget.querySelector('button[type="submit"]');
+      const originalBtnContent = submitBtn.innerHTML;
+      
+      const email = inputEl.value.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      
+      if (!emailRegex.test(email)) {
+        alert('Please enter a valid email address.');
+        return;
+      }
+
+      // Submitting State
+      submitBtn.disabled = true;
+      inputEl.disabled = true;
+      submitBtn.innerHTML = `
+        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Joining...</span>
+      `;
+
+      // Simulate network request delay (on-device local check or minimal delay)
+      setTimeout(() => {
+        localStorage.setItem(LOCAL_STORAGE_KEY, email);
+        checkWaitlistStatus();
+      }, 1000);
+    }
+
+    if (heroForm) heroForm.addEventListener('submit', handleWaitlistSubmit);
+    if (footerForm) footerForm.addEventListener('submit', handleWaitlistSubmit);
+    
+    // Initial load check
+    checkWaitlistStatus();
+  </script>
+</body>
+</html>
