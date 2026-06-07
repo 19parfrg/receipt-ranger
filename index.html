@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReceiptRanger — Interactive Web Prototype</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Hide scrollbars for cleaner iOS look */
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-none {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* Smooth transition for swipe foreground card */
+    .receipt-card-foreground {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-full overflow-hidden flex flex-col">
+
+  <!-- Main App Container -->
+  <div class="flex-grow flex flex-col lg:flex-row h-full max-h-full overflow-hidden relative">
+    
+    <!-- Left Sidebar: Inbox / List (lg:col-span-5) -->
+    <div id="sidebar" class="w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 flex flex-col border-r border-slate-900 bg-slate-950 h-full max-h-full overflow-hidden select-none">
+      
+      <!-- Top Brand Header & Actions -->
+      <div class="p-4 border-b border-slate-900 bg-slate-950 space-y-4">
+        <div class="flex items-center justify-between">
+          <a href="landing.html" class="flex items-center gap-2 group">
+            <div class="p-2 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-lg shadow-md shadow-violet-500/10">
+              <i data-lucide="shield-check" class="w-4 h-4 text-white"></i>
+            </div>
+            <span class="text-base font-bold tracking-tight bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent group-hover:text-violet-400 transition-colors">
+              ReceiptRanger
+            </span>
+          </a>
+          
+          <div class="flex gap-2">
+            <!-- Export CSV -->
+            <button id="export-csv-btn" class="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-violet-400 rounded-xl transition-all" title="Export CSV">
+              <i data-lucide="download" class="w-4 h-4"></i>
+            </button>
+            
+            <!-- Upload / Scan Button -->
+            <button id="upload-btn" class="px-3.5 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl transition-all shadow-lg shadow-violet-500/20 flex items-center gap-1.5 active:scale-[0.97]">
+              <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+              <span>Scan Receipt</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Expense Ticker Stats -->
+        <div class="grid grid-cols-2 gap-4 p-3 bg-slate-900/60 border border-slate-800/80 rounded-2xl">
+          <div>
+            <p class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Active</p>
+            <p id="total-amount-ticker" class="text-lg font-bold text-white mt-0.5">$0.00</p>
+          </div>
+          <div class="text-right border-l border-slate-800/60 pl-4">
+            <p class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Count</p>
+            <p id="total-count-ticker" class="text-lg font-bold text-white mt-0.5">0</p>
+          </div>
+        </div>
+
+        <!-- Custom iOS-style Tab Switcher -->
+        <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-800/85">
+          <button id="tab-btn-active" class="flex-1 text-center py-2 text-xs font-semibold rounded-lg transition-all" data-tab="active">
+            Inbox
+          </button>
+          <button id="tab-btn-archived" class="flex-1 text-center py-2 text-xs font-semibold rounded-lg transition-all" data-tab="archived">
+            Archive
+          </button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+            <i data-lucide="search" class="w-4 h-4"></i>
+          </span>
+          <input type="text" id="search-input" placeholder="Search merchants..." class="w-full pl-10 pr-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all text-xs">
+        </div>
+
+        <!-- Category Horizontal Filter Bar -->
+        <div id="category-filters-container" class="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <!-- Dynamically populated chips -->
+        </div>
+      </div>
+
+      <!-- Receipts Scrollable List -->
+      <div id="receipt-list" class="flex-grow overflow-y-auto p-4 space-y-3">
+        <!-- Dynamically rendered items -->
+      </div>
+      
+    </div>
+
+    <!-- Right Side: Details View Panel (lg:col-span-7) -->
+    <div id="details-view" class="flex-grow flex flex-col bg-slate-900 h-full max-h-full overflow-hidden">
+      <!-- Details Content Container -->
+      <div id="details-panel" class="flex-grow overflow-y-auto p-6 lg:p-8">
+        <!-- Dynamically rendered detail edit form -->
+      </div>
+    </div>
+    
+  </div>
+
+  <script>
+    // ----------------------------------------------------
+    // CONSTANTS & MOCK POOL
+    // ----------------------------------------------------
+    const CATEGORIES = ["Food & Dining", "Travel", "Office Supplies", "Entertainment", "Utilities"];
+    
+    const MOCK_OCR_TEMPLATES = [
+      { merchant: "Target Stores", amount: 84.23, category: "Office Supplies", tax: 5.89 },
+      { merchant: "McDonald's", amount: 18.75, category: "Food & Dining", tax: 1.50 },
+      { merchant: "Shell Gasoline", amount: 55.00, category: "Travel", tax: 4.40 },
+      { merchant: "Netflix Premium", amount: 22.99, category: "Entertainment", tax: 1.84 },
+      { merchant: "Comcast Cable", amount: 89.99, category: "Utilities", tax: 7.20 },
+      { merchant: "Blue Bottle Coffee", amount: 12.45, category: "Food & Dining", tax: 1.00 },
+      { merchant: "Delta Air Lines", amount: 312.50, category: "Travel", tax: 25.00 }
+    ];
+
+    // ----------------------------------------------------
+    // CENTRALIZED STATE
+    // ----------------------------------------------------
+    const state = {
+      receipts: [
+        {
+          id: "rcpt-1",
+          merchant: "Starbucks Coffee",
+          date: "2026-06-05",
+          amount: 14.58,
+          category: "Food & Dining",
+          tax: 1.17,
+          status: "active"
+        },
+        {
+          id: "rcpt-2",
+          merchant: "Uber Trips",
+          date: "2026-06-04",
+          amount: 42.10,
+          category: "Travel",
+          tax: 3.37,
+          status: "active"
+        },
+        {
+          id: "rcpt-3",
+          merchant: "Office Depot",
+          date: "2026-06-02",
+          amount: 118.24,
+          category: "Office Supplies",
+          tax: 9.46,
+          status: "active"
+        },
+        {
+          id: "rcpt-4",
+          merchant: "Netflix Premium",
+          date: "2026-05-28",
+          amount: 22.99,
+          category: "Entertainment",
+          tax: 1.84,
+          status: "archived"
+        }
+      ],
+      activeReceiptId: "rcpt-1",
+      isUploading: false,
+      uploadProgress: 0,
+      uploadTimerId: null,
+      activeTab: "active", // active (Inbox) | archived (Archive)
+      activeFilterCategory: "All", // All, Food & Dining, Travel, etc.
+      searchQuery: "",
+      isDetailMobileOpen: false // Mobile responsive details toggle
+    };
+
+    // Keep track of the active receipt ID during rendering
+    let lastRenderedActiveId = null;
+
+    // ----------------------------------------------------
+    // STATE UPDATE METHOD (go)
+    // ----------------------------------------------------
+    function go(patches) {
+      Object.assign(state, patches);
+      render();
+    }
+
+    // ----------------------------------------------------
+    // IDEMPOTENT RENDERING LOOP
+    // ----------------------------------------------------
+    function render() {
+      // 1. Render Stats Ticker
+      renderStats();
+
+      // 2. Render Tabs Control
+      renderTabs();
+
+      // 3. Render Category Filters Top Bar
+      renderCategoryFilters();
+
+      // 4. Render Sidebar Receipts List
+      renderReceiptList();
+
+      // 5. Render Right Details Edit Panel
+      renderDetailsPanel();
+
+      // 6. Mobile Visibility Updates
+      renderMobileViews();
+
+      // 7. Re-initialize Lucide SVG Icons
+      lucide.createIcons();
+    }
+
+    // ----------------------------------------------------
+    // RENDER SUB-FUNCTIONS
+    // ----------------------------------------------------
+    function renderStats() {
+      const activeReceipts = state.receipts.filter(r => r.status === 'active');
+      const totalSum = activeReceipts.reduce((acc, curr) => acc + curr.amount, 0);
+      
+      document.getElementById('total-amount-ticker').innerText = `$${totalSum.toFixed(2)}`;
+      document.getElementById('total-count-ticker').innerText = activeReceipts.length;
+    }
+
+    function renderTabs() {
+      const activeBtn = document.getElementById('tab-btn-active');
+      const archivedBtn = document.getElementById('tab-btn-archived');
+      
+      if (state.activeTab === 'active') {
+        activeBtn.className = "flex-1 text-center py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white shadow-sm border border-slate-700/50";
+        archivedBtn.className = "flex-1 text-center py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-colors";
+      } else {
+        archivedBtn.className = "flex-1 text-center py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white shadow-sm border border-slate-700/50";
+        activeBtn.className = "flex-1 text-center py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-colors";
+      }
+    }
+
+    function renderCategoryFilters() {
+      const container = document.getElementById('category-filters-container');
+      const categories = ["All", ...CATEGORIES];
+      
+      container.innerHTML = categories.map(cat => {
+        const isActive = state.activeFilterCategory === cat;
+        return `
+          <button class="category-filter-chip flex-shrink-0 text-[10px] font-semibold px-3 py-1.5 rounded-full transition-all border ${
+            isActive 
+              ? 'bg-violet-600 border-violet-500 text-white shadow-md shadow-violet-500/10' 
+              : 'bg-slate-900 border-slate-850 text-slate-400 hover:border-slate-800 hover:text-slate-200'
+          }" data-category="${cat}">
+            ${cat}
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderReceiptList() {
+      const container = document.getElementById('receipt-list');
+      const currentScrollTop = container ? container.scrollTop : 0;
+      
+      // Filter list
+      const filteredReceipts = state.receipts.filter(r => {
+        const matchesTab = r.status === state.activeTab;
+        const matchesCategory = state.activeFilterCategory === 'All' || r.category === state.activeFilterCategory;
+        const matchesSearch = state.searchQuery === '' || r.merchant.toLowerCase().includes(state.searchQuery.toLowerCase());
+        return matchesTab && matchesCategory && matchesSearch;
+      });
+
+      let htmlContent = '';
+
+      // Upload Scanning Progress Bar
+      if (state.isUploading) {
+        htmlContent += `
+          <div class="p-3 bg-violet-950/20 border border-violet-500/20 rounded-xl mb-4">
+            <div class="flex justify-between items-center text-[10px] text-violet-400 mb-1.5 font-semibold">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="scan" class="w-3.5 h-3.5 animate-spin text-violet-500"></i>
+                Local OCR Extracting...
+              </span>
+              <span>${state.uploadProgress}%</span>
+            </div>
+            <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+              <div class="bg-gradient-to-r from-violet-500 to-indigo-500 h-full transition-all duration-150" style="width: ${state.uploadProgress}%"></div>
+            </div>
+          </div>
+          
+          <!-- Pulsing Skeleton Item -->
+          <div class="relative overflow-hidden rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 animate-pulse-slow mb-3 flex justify-between items-center h-[88px]">
+            <div class="space-y-2 flex-grow">
+              <div class="h-3.5 bg-violet-500/20 rounded w-1/2"></div>
+              <div class="h-2.5 bg-violet-500/10 rounded w-1/3"></div>
+            </div>
+            <div class="text-right space-y-2">
+              <div class="h-4 bg-violet-500/20 rounded w-12 ml-auto"></div>
+              <div class="h-4.5 bg-violet-500/10 rounded-full w-14 ml-auto"></div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (filteredReceipts.length === 0 && !state.isUploading) {
+        htmlContent += `
+          <div class="flex flex-col items-center justify-center py-16 text-slate-500 space-y-3">
+            <div class="p-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-600">
+              <i data-lucide="receipt-text" class="w-8 h-8"></i>
+            </div>
+            <p class="text-xs">No receipts found in this filter</p>
+          </div>
+        `;
+      } else {
+        htmlContent += filteredReceipts.map(r => {
+          const isActive = r.id === state.activeReceiptId;
+          const isArchived = r.status === 'archived';
+          
+          return `
+            <div class="relative overflow-hidden rounded-xl border ${
+              isActive 
+                ? 'border-violet-500/50 shadow-lg shadow-violet-500/5' 
+                : 'border-slate-850 bg-slate-950'
+            } bg-slate-950 mb-3 group h-[88px] select-none">
+              
+              <!-- Left Action Strip (Swipe Right: Archive/Restore) -->
+              <div class="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r ${isArchived ? 'from-indigo-500/20' : 'from-emerald-500/20'} to-transparent flex items-center justify-start pl-4 pointer-events-none transition-opacity duration-200">
+                <div class="${isArchived ? 'text-indigo-400' : 'text-emerald-400'} flex items-center gap-1.5">
+                  <i data-lucide="${isArchived ? 'arrow-up-left' : 'archive'}" class="w-4 h-4"></i>
+                  <span class="text-[10px] font-bold uppercase tracking-wider">${isArchived ? 'Restore' : 'Archive'}</span>
+                </div>
+              </div>
+              
+              <!-- Right Action Strip (Swipe Left: Delete) -->
+              <div class="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-rose-500/20 to-transparent flex items-center justify-end pr-4 pointer-events-none transition-opacity duration-200">
+                <div class="text-rose-500 flex items-center gap-1.5">
+                  <span class="text-[10px] font-bold uppercase tracking-wider">Delete</span>
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </div>
+              </div>
+
+              <!-- Foreground Card -->
+              <div class="receipt-card-foreground absolute inset-0 p-4 flex justify-between items-center cursor-pointer ${
+                isActive 
+                  ? 'bg-violet-950/15' 
+                  : 'bg-slate-900 hover:bg-slate-850'
+              }" data-id="${r.id}">
+                <div class="space-y-1">
+                  <h4 class="font-semibold text-slate-100">${escapeHtml(r.merchant)}</h4>
+                  <p class="text-[10px] text-slate-500">${r.date}</p>
+                </div>
+                <div class="text-right">
+                  <p class="font-bold text-slate-100">$${r.amount.toFixed(2)}</p>
+                  <span class="inline-block text-[8px] font-bold bg-slate-800 border border-slate-700/60 rounded-full px-2 py-0.5 text-slate-400 mt-1">${r.category}</span>
+                </div>
+
+                <!-- Hover action buttons for desktop users -->
+                <div class="absolute right-2 top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto">
+                  <button class="archive-btn p-1.5 bg-slate-950 border border-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors" data-id="${r.id}" title="${isArchived ? 'Restore to Inbox' : 'Archive Receipt'}">
+                    <i data-lucide="${isArchived ? 'arrow-up-left' : 'archive'}" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button class="delete-btn p-1.5 bg-slate-950 border border-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition-colors" data-id="${r.id}" title="Delete Receipt">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      container.innerHTML = htmlContent;
+      if (container) {
+        container.scrollTop = currentScrollTop;
+      }
+    }
+
+    function renderDetailsPanel() {
+      const container = document.getElementById('details-panel');
+      const activeReceipt = state.receipts.find(r => r.id === state.activeReceiptId);
+
+      if (!activeReceipt) {
+        container.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-slate-500 py-16 space-y-4">
+            <div class="p-4 bg-slate-950 border border-slate-800/80 rounded-full text-slate-600 animate-pulse-slow">
+              <i data-lucide="receipt" class="w-12 h-12"></i>
+            </div>
+            <div class="text-center space-y-1">
+              <p class="text-sm font-semibold text-slate-300">No Receipt Selected</p>
+              <p class="text-xs text-slate-500 max-w-xs leading-relaxed">Select an expense from the inbox or scan a new receipt to view and edit details.</p>
+            </div>
+          </div>
+        `;
+        lastRenderedActiveId = null;
+        return;
+      }
+
+      const isArchived = activeReceipt.status === 'archived';
+
+      // If the selected receipt changed, draw the HTML form layout from scratch
+      if (lastRenderedActiveId !== state.activeReceiptId) {
+        lastRenderedActiveId = state.activeReceiptId;
+        
+        container.innerHTML = `
+          <div class="space-y-6">
+            
+            <!-- Details Panel Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div class="flex items-center gap-3">
+                <!-- Back arrow on mobile screen -->
+                <button id="mobile-back-btn" class="lg:hidden p-2 bg-slate-950 border border-slate-850 hover:bg-slate-900 rounded-xl transition-all" title="Back">
+                  <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                </button>
+                <div>
+                  <h3 class="text-lg font-bold text-slate-100">Receipt Details</h3>
+                  <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5">ID: ${activeReceipt.id}</p>
+                </div>
+              </div>
+              <span class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${
+                isArchived 
+                  ? 'border-indigo-500/20 bg-indigo-500/10 text-indigo-400' 
+                  : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+              } rounded-full">
+                ${activeReceipt.status}
+              </span>
+            </div>
+
+            <!-- Edit Fields Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              <!-- Merchant -->
+              <div class="md:col-span-2 space-y-2">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Merchant</label>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                    <i data-lucide="store" class="w-4 h-4"></i>
+                  </span>
+                  <input id="edit-merchant" data-field="merchant" type="text" class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-850 text-slate-100 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors text-sm" value="${escapeHtml(activeReceipt.merchant)}">
+                </div>
+              </div>
+
+              <!-- Date -->
+              <div class="space-y-2">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Transaction Date</label>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                    <i data-lucide="calendar" class="w-4 h-4"></i>
+                  </span>
+                  <input id="edit-date" data-field="date" type="date" class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-850 text-slate-100 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors text-sm" value="${activeReceipt.date}">
+                </div>
+              </div>
+
+              <!-- Amount ($) -->
+              <div class="space-y-2">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount ($)</label>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                    <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                  </span>
+                  <input id="edit-amount" data-field="amount" type="number" step="0.01" class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-850 text-slate-100 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors text-sm" value="${activeReceipt.amount}">
+                </div>
+              </div>
+
+              <!-- Tax Included ($) -->
+              <div class="space-y-2">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tax Included ($)</label>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                    <i data-lucide="percent" class="w-4 h-4"></i>
+                  </span>
+                  <input id="edit-tax" data-field="tax" type="number" step="0.01" class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-850 text-slate-100 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors text-sm" value="${activeReceipt.tax}">
+                </div>
+              </div>
+
+              <!-- Category (Chips Selector) -->
+              <div class="md:col-span-2 space-y-3">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assign Category</label>
+                <div id="detail-category-chips" class="flex flex-wrap gap-2">
+                  <!-- Rendered dynamically -->
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Triage Actions Bottom Bar -->
+            <div class="flex gap-4 pt-6 border-t border-slate-800">
+              <!-- Archive Button -->
+              <button id="detail-archive-btn" class="flex-1 py-3 px-4 bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+                <i data-lucide="${isArchived ? 'arrow-up-left' : 'archive'}" class="w-4 h-4"></i>
+                <span>${isArchived ? 'Restore to Inbox' : 'Archive Receipt'}</span>
+              </button>
+
+              <!-- Delete Button -->
+              <button id="detail-delete-btn" class="py-3 px-5 bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/40 text-rose-400 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                <span>Delete</span>
+              </button>
+            </div>
+
+          </div>
+        `;
+      } else {
+        // If the same receipt remains selected, update field values ONLY if they do NOT have focus
+        updateField('edit-merchant', activeReceipt.merchant);
+        updateField('edit-date', activeReceipt.date);
+        updateField('edit-amount', activeReceipt.amount);
+        updateField('edit-tax', activeReceipt.tax);
+      }
+
+      // Always redraw the category chips inside details
+      renderDetailCategoryChips(activeReceipt.category);
+    }
+
+    function renderDetailCategoryChips(activeCategory) {
+      const container = document.getElementById('detail-category-chips');
+      if (!container) return;
+
+      container.innerHTML = CATEGORIES.map(cat => {
+        const isActive = cat === activeCategory;
+        return `
+          <button class="category-chip text-xs font-semibold px-3 py-2 rounded-xl transition-all border ${
+            isActive 
+              ? 'bg-violet-600 border-violet-500 text-white shadow-md shadow-violet-500/10' 
+              : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-800 hover:text-slate-200'
+          }" data-category="${cat}">
+            ${cat}
+          </button>
+        `;
+      }).join('');
+    }
+
+    function updateField(elementId, value) {
+      const el = document.getElementById(elementId);
+      if (el && document.activeElement !== el) {
+        el.value = value;
+      }
+    }
+
+    function renderMobileViews() {
+      const sidebar = document.getElementById('sidebar');
+      const details = document.getElementById('details-view');
+      
+      if (window.innerWidth < 1024) {
+        // On mobile viewport
+        if (state.isDetailMobileOpen && state.activeReceiptId !== null) {
+          sidebar.classList.add('hidden');
+          details.classList.remove('hidden');
+        } else {
+          sidebar.classList.remove('hidden');
+          details.classList.add('hidden');
+        }
+      } else {
+        // Desktop viewport (both visible)
+        sidebar.classList.remove('hidden');
+        details.classList.remove('hidden');
+      }
+    }
+
+    // ----------------------------------------------------
+    // ASYNCHRONOUS SIMULATED UPLOAD (OCR SCANNING)
+    // ----------------------------------------------------
+    function simulateUpload() {
+      if (state.isUploading) return;
+
+      // Clear any pre-existing timer
+      if (state.uploadTimerId) {
+        clearInterval(state.uploadTimerId);
+      }
+
+      go({
+        isUploading: true,
+        uploadProgress: 0,
+        isDetailMobileOpen: false // close detail on upload start
+      });
+
+      const totalDuration = 2400; // 2.4 seconds
+      const stepDuration = 80;    // ms per step
+      const totalSteps = totalDuration / stepDuration;
+      const progressIncrement = 100 / totalSteps;
+
+      const timerId = setInterval(() => {
+        let nextProgress = state.uploadProgress + progressIncrement;
+        
+        if (nextProgress >= 100) {
+          clearInterval(timerId);
+
+          // Select a random template and generate metadata
+          const template = MOCK_OCR_TEMPLATES[Math.floor(Math.random() * MOCK_OCR_TEMPLATES.length)];
+          const newReceipt = {
+            id: `rcpt-${Date.now()}`,
+            merchant: template.merchant,
+            date: new Date().toISOString().split('T')[0],
+            amount: template.amount,
+            category: template.category,
+            tax: template.tax,
+            status: "active"
+          };
+
+          go({
+            receipts: [newReceipt, ...state.receipts],
+            activeReceiptId: newReceipt.id,
+            isUploading: false,
+            uploadProgress: 0,
+            uploadTimerId: null,
+            isDetailMobileOpen: true,
+            activeTab: "active", // switch to inbox to show new receipt
+            activeFilterCategory: "All"
+          });
+        } else {
+          go({
+            uploadProgress: Math.min(100, Math.round(nextProgress)),
+            uploadTimerId: timerId
+          });
+        }
+      }, stepDuration);
+
+      state.uploadTimerId = timerId;
+    }
+
+    // ----------------------------------------------------
+    // ACTIONS & TRIAGE STATE MUTATIONS
+    // ----------------------------------------------------
+    function archiveReceipt(id) {
+      const updatedReceipts = state.receipts.map(r => {
+        if (r.id === id) {
+          return { ...r, status: r.status === 'active' ? 'archived' : 'active' };
+        }
+        return r;
+      });
+
+      // Find next active receipt if current selected was archived
+      let nextActiveId = state.activeReceiptId;
+      if (id === state.activeReceiptId) {
+        const remaining = updatedReceipts.filter(r => {
+          const matchesTab = r.status === state.activeTab;
+          const matchesCategory = state.activeFilterCategory === 'All' || r.category === state.activeFilterCategory;
+          const matchesSearch = state.searchQuery === '' || r.merchant.toLowerCase().includes(state.searchQuery.toLowerCase());
+          return matchesTab && matchesCategory && matchesSearch;
+        });
+        nextActiveId = remaining.length > 0 ? remaining[0].id : null;
+      }
+
+      go({ receipts: updatedReceipts, activeReceiptId: nextActiveId });
+    }
+
+    function deleteReceipt(id) {
+      if (!confirm("Are you sure you want to delete this receipt? This action is permanent.")) {
+        return;
+      }
+
+      const updatedReceipts = state.receipts.filter(r => r.id !== id);
+
+      // Find next active receipt if current selected was deleted
+      let nextActiveId = state.activeReceiptId;
+      if (id === state.activeReceiptId) {
+        const remaining = updatedReceipts.filter(r => {
+          const matchesTab = r.status === state.activeTab;
+          const matchesCategory = state.activeFilterCategory === 'All' || r.category === state.activeFilterCategory;
+          const matchesSearch = state.searchQuery === '' || r.merchant.toLowerCase().includes(state.searchQuery.toLowerCase());
+          return matchesTab && matchesCategory && matchesSearch;
+        });
+        nextActiveId = remaining.length > 0 ? remaining[0].id : null;
+      }
+
+      go({ receipts: updatedReceipts, activeReceiptId: nextActiveId, isDetailMobileOpen: remaining.length > 0 });
+    }
+
+    // ----------------------------------------------------
+    // EXPORT CSV WORKFLOW
+    // ----------------------------------------------------
+    function escapeCSVValue(val) {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      str = str.replace(/"/g, '""');
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        str = `"${str}"`;
+      }
+      return str;
+    }
+
+    function exportCSV() {
+      const activeReceipts = state.receipts.filter(r => r.status === 'active');
+      if (activeReceipts.length === 0) {
+        alert("No active inbox receipts to export.");
+        return;
+      }
+
+      const headers = ['ID', 'Merchant', 'Date', 'Amount', 'Tax', 'Category'];
+      const rows = activeReceipts.map(r => [
+        r.id,
+        r.merchant,
+        r.date,
+        r.amount.toFixed(2),
+        r.tax.toFixed(2),
+        r.category
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(escapeCSVValue).join(','))
+      ].join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.setAttribute('href', downloadUrl);
+      link.setAttribute('download', `receipt_ranger_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+    }
+
+    // Helper utility to escape HTML elements to avoid XSS issues
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // ----------------------------------------------------
+    // GESTURES: TOUCH SWIPE LOGIC
+    // ----------------------------------------------------
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let swipeActiveCard = null;
+    let isSwiping = false;
+
+    function setupSwipeGestures() {
+      const listContainer = document.getElementById('receipt-list');
+      if (!listContainer) return;
+
+      listContainer.addEventListener('touchstart', (e) => {
+        const card = e.target.closest('.receipt-card-foreground');
+        if (!card) return;
+        
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        swipeActiveCard = card;
+        
+        // Remove transform transition for direct tracking feedback
+        swipeActiveCard.classList.remove('transition-transform');
+        isSwiping = false;
+      }, { passive: true });
+
+      listContainer.addEventListener('touchmove', (e) => {
+        if (!swipeActiveCard) return;
+        
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        
+        const diffX = currentX - touchStartX;
+        const diffY = currentY - touchStartY;
+
+        // Check if movement is primarily horizontal
+        if (!isSwiping && Math.abs(diffX) > 10 && Math.abs(diffX) > Math.abs(diffY)) {
+          isSwiping = true;
+        }
+
+        if (isSwiping) {
+          // Block window scrolling during swiping gestures
+          if (e.cancelable) e.preventDefault();
+          // Clamp dragging to max values
+          const translateVal = Math.min(Math.max(diffX, -100), 100);
+          swipeActiveCard.style.transform = `translateX(${translateVal}px)`;
+        }
+      }, { passive: false });
+
+      listContainer.addEventListener('touchend', (e) => {
+        if (!swipeActiveCard) return;
+        
+        swipeActiveCard.classList.add('transition-transform');
+        
+        const currentX = e.changedTouches[0].clientX;
+        const diffX = currentX - touchStartX;
+        const id = swipeActiveCard.dataset.id;
+
+        if (isSwiping) {
+          if (diffX < -60) {
+            // Swipe Left -> Delete
+            swipeActiveCard.style.transform = 'translateX(-100%)';
+            setTimeout(() => {
+              deleteReceipt(id);
+            }, 250);
+          } else if (diffX > 60) {
+            // Swipe Right -> Archive
+            swipeActiveCard.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+              archiveReceipt(id);
+            }, 250);
+          } else {
+            // Reset position
+            swipeActiveCard.style.transform = 'translateX(0)';
+          }
+        }
+        
+        swipeActiveCard = null;
+        isSwiping = false;
+      });
+    }
+
+    // ----------------------------------------------------
+    // SYSTEM INITIALIZATION & EVENT DELEGATION
+    // ----------------------------------------------------
+    window.addEventListener('DOMContentLoaded', () => {
+      
+      // 1. Initial State Render
+      render();
+
+      // 2. Setup Swipe Gestures for Mobile devices
+      setupSwipeGestures();
+
+      // 3. Tab Buttons Trigger
+      document.getElementById('tab-btn-active').addEventListener('click', () => {
+        const remaining = state.receipts.filter(r => r.status === 'active');
+        const nextActiveId = remaining.length > 0 ? remaining[0].id : null;
+        go({ activeTab: "active", activeReceiptId: nextActiveId, isDetailMobileOpen: false });
+      });
+
+      document.getElementById('tab-btn-archived').addEventListener('click', () => {
+        const remaining = state.receipts.filter(r => r.status === 'archived');
+        const nextActiveId = remaining.length > 0 ? remaining[0].id : null;
+        go({ activeTab: "archived", activeReceiptId: nextActiveId, isDetailMobileOpen: false });
+      });
+
+      // 4. Category Filters click trigger (Event Delegation)
+      document.getElementById('category-filters-container').addEventListener('click', (e) => {
+        const filterChip = e.target.closest('.category-filter-chip');
+        if (filterChip) {
+          const category = filterChip.dataset.category;
+          const remaining = state.receipts.filter(r => {
+            const matchesTab = r.status === state.activeTab;
+            const matchesCategory = category === 'All' || r.category === category;
+            const matchesSearch = state.searchQuery === '' || r.merchant.toLowerCase().includes(state.searchQuery.toLowerCase());
+            return matchesTab && matchesCategory && matchesSearch;
+          });
+          const nextActiveId = remaining.length > 0 ? remaining[0].id : null;
+          go({ activeFilterCategory: category, activeReceiptId: nextActiveId, isDetailMobileOpen: false });
+        }
+      });
+
+      // 5. Sidebar Receipt List click triggers (Event Delegation)
+      document.getElementById('receipt-list').addEventListener('click', (e) => {
+        const archiveBtn = e.target.closest('.archive-btn');
+        const deleteBtn = e.target.closest('.delete-btn');
+        const cardForeground = e.target.closest('.receipt-card-foreground');
+        
+        if (archiveBtn) {
+          e.stopPropagation();
+          archiveReceipt(archiveBtn.dataset.id);
+          return;
+        }
+
+        if (deleteBtn) {
+          e.stopPropagation();
+          deleteReceipt(deleteBtn.dataset.id);
+          return;
+        }
+
+        if (cardForeground) {
+          go({ activeReceiptId: cardForeground.dataset.id, isDetailMobileOpen: true });
+        }
+      });
+
+      // 6. Search Bar typing input trigger
+      document.getElementById('search-input').addEventListener('input', (e) => {
+        const query = e.target.value;
+        const remaining = state.receipts.filter(r => {
+          const matchesTab = r.status === state.activeTab;
+          const matchesCategory = state.activeFilterCategory === 'All' || r.category === state.activeFilterCategory;
+          const matchesSearch = query === '' || r.merchant.toLowerCase().includes(query.toLowerCase());
+          return matchesTab && matchesCategory && matchesSearch;
+        });
+        const nextActiveId = remaining.length > 0 ? remaining[0].id : null;
+        go({ searchQuery: query, activeReceiptId: nextActiveId });
+      });
+
+      // 7. Details Form updates / clicks (Event Delegation)
+      const detailsPanel = document.getElementById('details-panel');
+      
+      // Handle details text typing inputs
+      detailsPanel.addEventListener('input', (e) => {
+        const target = e.target;
+        const field = target.dataset.field;
+        if (!field || !state.activeReceiptId) return;
+
+        let val = target.value;
+        if (target.type === 'number') {
+          val = parseFloat(val) || 0;
+        }
+
+        const updatedReceipts = state.receipts.map(r => {
+          if (r.id === state.activeReceiptId) {
+            return { ...r, [field]: val };
+          }
+          return r;
+        });
+
+        // Trigger go update (renders changes on sidebar/stats in real time)
+        go({ receipts: updatedReceipts });
+      });
+
+      // Handle details actions/chips clicking
+      detailsPanel.addEventListener('click', (e) => {
+        const categoryChip = e.target.closest('.category-chip');
+        if (categoryChip) {
+          const cat = categoryChip.dataset.category;
+          const updatedReceipts = state.receipts.map(r => {
+            if (r.id === state.activeReceiptId) {
+              return { ...r, category: cat };
+            }
+            return r;
+          });
+          go({ receipts: updatedReceipts });
+          return;
+        }
+
+        const detailArchiveBtn = e.target.closest('#detail-archive-btn');
+        if (detailArchiveBtn) {
+          archiveReceipt(state.activeReceiptId);
+          return;
+        }
+
+        const detailDeleteBtn = e.target.closest('#detail-delete-btn');
+        if (detailDeleteBtn) {
+          deleteReceipt(state.activeReceiptId);
+          return;
+        }
+
+        const backBtn = e.target.closest('#mobile-back-btn');
+        if (backBtn) {
+          go({ isDetailMobileOpen: false });
+          return;
+        }
+      });
+
+      // 8. Global Action Triggers
+      document.getElementById('upload-btn').addEventListener('click', simulateUpload);
+      document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
+
+      // 9. Resize listener for Responsive mobile view layout matching
+      window.addEventListener('resize', () => {
+        renderMobileViews();
+      });
+      
+    });
+  </script>
+</body>
+</html>
