@@ -71,12 +71,7 @@ jobs:
             EMOJI="❌"
           fi
           
-          TEXT="📱 *iOS Build Completed*
-
-*Status*: ${EMOJI} ${STATUS}
-*Repository*: ${REPO}
-*Commit*: \`${SHA:0:7}\`
-[View Workflow Run](${RUN_URL})"
+          TEXT=$(printf "📱 *iOS Build Completed*\n\n*Status*: %s %s\n*Repository*: %s\n*Commit*: \`%.7s\`\n[View Workflow Run](%s)" "${EMOJI}" "${STATUS}" "${REPO}" "${SHA}" "${RUN_URL}")
 
           curl -s -X POST "https://api.telegram.org/bot8883448711:AAHNiWBp7V3d8CMm1RHBr4x1chAvXut-w5k/sendMessage" \
             -d "chat_id=8053966290" \
