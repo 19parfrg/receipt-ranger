@@ -1,0 +1,84 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: receipt-ranger-mobile/package-lock.json
+
+      - name: Install dependencies
+        working-directory: receipt-ranger-mobile
+        run: npm ci
+
+      - name: Prebuild iOS
+        working-directory: receipt-ranger-mobile
+        run: npx expo prebuild --platform ios
+
+      - name: Build iOS App (Unsigned)
+        working-directory: receipt-ranger-mobile
+        run: |
+          xcodebuild -workspace ios/ReceiptRanger.xcworkspace \
+                     -scheme ReceiptRanger \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGN_ENTITLEMENTS="" \
+                     -derivedDataPath build
+
+      - name: Package IPA
+        run: |
+          mkdir -p build
+          mkdir -p Payload
+          cp -R receipt-ranger-mobile/build/Build/Products/Release-iphoneos/ReceiptRanger.app Payload/
+          zip -r build/ReceiptRanger-unsigned.ipa Payload
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReceiptRanger-unsigned-ipa
+          path: build/ReceiptRanger-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Send Telegram Notification
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          REPO="${{ github.repository }}"
+          SHA="${{ github.sha }}"
+          RUN_ID="${{ github.run_id }}"
+          RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
+          
+          if [ "$STATUS" = "success" ]; then
+            EMOJI="✅"
+          else
+            EMOJI="❌"
+          fi
+          
+          TEXT="📱 *iOS Build Completed*
+
+*Status*: ${EMOJI} ${STATUS}
+*Repository*: ${REPO}
+*Commit*: \`${SHA:0:7}\`
+[View Workflow Run](${RUN_URL})"
+
+          curl -s -X POST "https://api.telegram.org/bot8883448711:AAHNiWBp7V3d8CMm1RHBr4x1chAvXut-w5k/sendMessage" \
+            -d "chat_id=8053966290" \
+            -d "parse_mode=Markdown" \
+            --data-urlencode "text=${TEXT}"

@@ -45,3 +45,37 @@ Initialize an Expo React Native iOS application using TypeScript in a subdirecto
 - [ ] Directory `receipt-ranger-mobile` is successfully initialized with Expo SDK.
 - [ ] Mobile codebase is configured for TS and compiles without syntax errors.
 - [ ] `Info.plist` permissions for `NSPhotoLibraryUsageDescription` are configured in `app.json`.
+
+## Follow-up — 2026-06-08T12:00:28-05:00
+
+Configure and set up the private beta compilation for ReceiptRanger on iOS. Replicate the Sift project's GitHub Actions build pipeline to package the Expo React Native app into an unsigned `.ipa` artifact, maintain the local-only data storage paradigm, and notify the user on Telegram.
+
+Working directory: C:\Users\grant\Documents\antigravity\quirky-chandrasekhar
+Integrity mode: development
+
+## Requirements
+
+### R1. GitHub Action Dev Client Build Workflow (`build-ios.yml`)
+Create a workflow `.github/workflows/build-ios.yml` to compile the `receipt-ranger-mobile` Expo React Native project into an unsigned `.ipa` file using macOS-15 runners. 
+- Must prebuild the iOS platform (`ReceiptRanger.xcworkspace`, scheme `ReceiptRanger`).
+- Package the output `ReceiptRanger.app` into a `Payload` directory, zip it as `ReceiptRanger-unsigned.ipa`, and upload it as a workflow artifact.
+
+### R2. Local-Only Storage Preservation
+Keep all receipt records, OCR results, and expense stats strictly on-device (via SQLite/AsyncStorage) inside the application sandbox. Do not implement any remote server data synchronization, preserving the app's zero-cloud, absolute privacy value proposition.
+
+### R3. Commit and Push to Remote
+Ensure all workflow configurations are committed and pushed to the remote repository `19parfrg/receipt-ranger` to automatically trigger the Pages deploy and the iOS compilation.
+
+### R4. Telegram Completion Notification
+Configure the pipeline to send a Telegram message to Grant using the Antigravity Bot credentials when the task is complete.
+
+## Acceptance Criteria
+
+### iOS Build Pipeline
+- [ ] `.github/workflows/build-ios.yml` is created with correct paths for `receipt-ranger-mobile`.
+- [ ] The workflow targets the `-workspace ReceiptRanger.xcworkspace` and `-scheme ReceiptRanger` with code signing disabled.
+- [ ] Files are successfully committed and pushed to the remote repository.
+
+### Notification
+- [ ] Telegram notification is sent upon completion indicating project name and status.
+
