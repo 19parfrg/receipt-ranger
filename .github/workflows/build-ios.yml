@@ -25,6 +25,12 @@ jobs:
         working-directory: receipt-ranger-mobile
         run: npm ci
 
+      - name: Select Xcode Version
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app
+          xcodebuild -version
+          swift --version
+
       - name: Prebuild iOS
         working-directory: receipt-ranger-mobile
         run: npx expo prebuild --platform ios
