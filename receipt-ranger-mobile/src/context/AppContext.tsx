@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -7,6 +7,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Receipt, CategoryType, ScreenName, TabName } from '../types';
 import { MOCK_RECEIPTS, MOCK_OCR_TEMPLATES } from '../data/mockReceipts';
+import { performOCR, ParsedReceipt } from '../services/OCRService';
+import { DEV_TOOLS_ENABLED } from '../config/features';
+
+const RECEIPTS_KEY = '@receipts';
+const CONSENT_KEY = '@consent_given';
 
 interface AppContextProps {
   receipts: Receipt[];
@@ -34,7 +39,9 @@ interface AppContextProps {
   updateReceipt: (id: string, updates: Partial<Receipt>) => void;
   archiveReceipt: (id: string) => void;
   deleteReceipt: (id: string) => void;
-  simulateUpload: (imageUri?: string) => void;
+  scanReceipt: (imageUri: string) => Promise<void>;
+  /** Dev-only: animated fake scan with canned data. No-op in release. */
+  simulateUpload: () => void;
   exportToCSV: () => Promise<void>;
   requestPermissions: () => Promise<boolean>;
   showToast: (message: string) => void;
@@ -56,30 +63,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [searchQuery, setSearchQuery] = useState('');
   const [hasPermissions, setHasPermissions] = useState(false);
 
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const splashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const init = async () => {
       try {
-        // Load receipts from storage or initialize with mock data
-        const storedReceipts = await AsyncStorage.getItem('@receipts');
-        let initialReceipts = MOCK_RECEIPTS;
+        // Load receipts from local storage. A fresh production install starts
+        // with an empty inbox by design; demo receipts are seeded in dev only.
+        const storedReceipts = await AsyncStorage.getItem(RECEIPTS_KEY);
         if (storedReceipts) {
-          initialReceipts = JSON.parse(storedReceipts);
-          setReceipts(initialReceipts);
-        } else {
+          setReceipts(JSON.parse(storedReceipts));
+        } else if (DEV_TOOLS_ENABLED) {
           setReceipts(MOCK_RECEIPTS);
-          await AsyncStorage.setItem('@receipts', JSON.stringify(MOCK_RECEIPTS));
+          await AsyncStorage.setItem(RECEIPTS_KEY, JSON.stringify(MOCK_RECEIPTS));
         }
 
         // Load onboarding consent status
-        const consentGiven = await AsyncStorage.getItem('@consent_given');
-        
+        const consentGiven = await AsyncStorage.getItem(CONSENT_KEY);
+
         // Brief loading state visual delay
-        setTimeout(() => {
-          if (consentGiven === 'true') {
-            setScreen('app');
-          } else {
-            setScreen('onboarding');
-          }
+        splashTimer.current = setTimeout(() => {
+          setScreen(consentGiven === 'true' ? 'app' : 'onboarding');
         }, 1500);
 
         // Check current permission statuses
@@ -90,90 +96,148 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (err) {
         console.error('Failed to initialize local state', err);
-        setReceipts(MOCK_RECEIPTS);
         setScreen('onboarding');
       }
     };
     init();
+
+    return () => {
+      if (progressTimer.current) clearInterval(progressTimer.current);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (splashTimer.current) clearTimeout(splashTimer.current);
+    };
   }, []);
 
-  const saveReceipts = async (newReceipts: Receipt[]) => {
-    setReceipts(newReceipts);
-    try {
-      await AsyncStorage.setItem('@receipts', JSON.stringify(newReceipts));
-    } catch (err) {
-      console.error('Failed to save receipts to AsyncStorage', err);
-    }
+  const persistReceipts = (list: Receipt[]) => {
+    AsyncStorage.setItem(RECEIPTS_KEY, JSON.stringify(list)).catch(err =>
+      console.error('Failed to save receipts to AsyncStorage', err)
+    );
+  };
+
+  // Functional updates so concurrent mutations never work from a stale list.
+  const applyReceipts = (updater: (prev: Receipt[]) => Receipt[]) => {
+    setReceipts(prev => {
+      const next = updater(prev);
+      persistReceipts(next);
+      return next;
+    });
   };
 
   const addReceipt = (receipt: Receipt) => {
-    const updated = [receipt, ...receipts];
-    saveReceipts(updated);
+    applyReceipts(prev => [receipt, ...prev]);
     showToast('Receipt saved successfully!');
   };
 
   const updateReceipt = (id: string, updates: Partial<Receipt>) => {
-    const updated = receipts.map(r => r.id === id ? { ...r, ...updates } : r);
-    saveReceipts(updated);
+    applyReceipts(prev => prev.map(r => (r.id === id ? { ...r, ...updates } : r)));
   };
 
   const archiveReceipt = (id: string) => {
-    const receipt = receipts.find(r => r.id === id);
-    if (!receipt) return;
-    const newStatus: 'active' | 'archived' = receipt.status === 'active' ? 'archived' : 'active';
-    const updated = receipts.map(r => r.id === id ? { ...r, status: newStatus } : r);
-    saveReceipts(updated);
+    let archived = false;
+    applyReceipts(prev =>
+      prev.map(r => {
+        if (r.id !== id) return r;
+        archived = r.status === 'active';
+        return { ...r, status: archived ? 'archived' : 'active' };
+      })
+    );
     setActiveReceiptId(null);
-    showToast(newStatus === 'archived' ? 'Receipt archived successfully' : 'Receipt restored to inbox');
+    showToast(archived ? 'Receipt archived successfully' : 'Receipt restored to inbox');
   };
 
   const deleteReceipt = (id: string) => {
-    const updated = receipts.filter(r => r.id !== id);
-    saveReceipts(updated);
+    applyReceipts(prev => prev.filter(r => r.id !== id));
     setActiveReceiptId(null);
     showToast('Receipt deleted successfully');
   };
 
-  const simulateUpload = (imageUri?: string) => {
+  const clearProgressTimer = () => {
+    if (progressTimer.current) {
+      clearInterval(progressTimer.current);
+      progressTimer.current = null;
+    }
+  };
+
+  const finishScan = (parsed: ParsedReceipt, imageUri?: string) => {
+    const newReceipt: Receipt = {
+      id: `rcpt-${Date.now()}`,
+      merchant: parsed.merchant,
+      date: parsed.date,
+      amount: parsed.amount,
+      category: parsed.category,
+      tax: parsed.tax,
+      status: 'active',
+      ocrText: parsed.ocrText,
+      imageUri,
+    };
+    applyReceipts(prev => [newReceipt, ...prev]);
+    setActiveReceiptId(newReceipt.id);
+    setActiveTab('active');
+    setActiveCategory('All');
+    showToast(parsed.simulated ? 'Simulated scan complete (dev only)' : 'On-device OCR scan complete!');
+  };
+
+  /**
+   * Real scan pipeline: image → Apple Vision OCR → parsed fields → inbox.
+   * Everything runs locally; the image never leaves the device.
+   */
+  const scanReceipt = async (imageUri: string) => {
     if (isUploading) return;
+    setIsUploading(true);
+    setUploadProgress(8);
+    // Creep toward 90% while the Vision engine works; jump to 100 on completion.
+    progressTimer.current = setInterval(() => {
+      setUploadProgress(p => (p < 90 ? p + 6 : p));
+    }, 180);
+
+    try {
+      const parsed = await performOCR(imageUri);
+      clearProgressTimer();
+      if (!parsed) {
+        showToast('No readable text found. Try a clearer, well-lit photo.');
+        return;
+      }
+      setUploadProgress(100);
+      finishScan(parsed, imageUri);
+    } catch (err) {
+      console.error('Receipt scan failed:', err);
+      showToast('Something went wrong while scanning. Please try again.');
+    } finally {
+      clearProgressTimer();
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const simulateUpload = () => {
+    if (!DEV_TOOLS_ENABLED || isUploading) return;
     setIsUploading(true);
     setUploadProgress(0);
 
     let currentProgress = 0;
-    const interval = setInterval(() => {
+    progressTimer.current = setInterval(() => {
       currentProgress += 10;
       if (currentProgress >= 100) {
-        clearInterval(interval);
-        
+        clearProgressTimer();
         const template = MOCK_OCR_TEMPLATES[Math.floor(Math.random() * MOCK_OCR_TEMPLATES.length)];
-        const newReceipt: Receipt = {
-          id: `rcpt-${Date.now()}`,
-          merchant: template.merchant,
-          date: new Date().toISOString().split('T')[0],
-          amount: template.amount,
-          category: template.category,
-          tax: template.tax,
-          status: 'active' as const,
-          ocrText: template.ocrText,
-          imageUri: imageUri || undefined,
-        };
-
-        setReceipts(prev => {
-          const updated = [newReceipt, ...prev];
-          AsyncStorage.setItem('@receipts', JSON.stringify(updated)).catch(e => console.error(e));
-          return updated;
-        });
-
+        finishScan(
+          {
+            merchant: template.merchant,
+            date: new Date().toISOString().split('T')[0],
+            amount: template.amount,
+            tax: template.tax,
+            category: template.category,
+            ocrText: template.ocrText,
+            simulated: true,
+          },
+          undefined
+        );
         setIsUploading(false);
         setUploadProgress(0);
-        setActiveReceiptId(newReceipt.id);
-        setActiveTab('active');
-        setActiveCategory('All');
-        showToast('Local OCR scan complete!');
       } else {
         setUploadProgress(currentProgress);
       }
-    }, 240); // Runs 2.4 seconds total (10 ticks)
+    }, 240);
   };
 
   const exportToCSV = async () => {
@@ -200,7 +264,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       r.tax.toFixed(2),
       r.category
     ].join(','));
-    
+
     const csvString = [headers.join(','), ...csvRows].join('\r\n');
     const filename = `receipt_ranger_export_${new Date().toISOString().split('T')[0]}.csv`;
     const fileUri = `${FileSystem.documentDirectory}${filename}`;
@@ -231,15 +295,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-      const mediaLibPermission = await MediaLibrary.requestPermissionsAsync();
-      
+      await MediaLibrary.requestPermissionsAsync();
+
       const libraryGranted = libraryPermission.status === 'granted';
       const cameraGranted = cameraPermission.status === 'granted';
       const granted = libraryGranted && cameraGranted;
       setHasPermissions(granted);
-      
-      await AsyncStorage.setItem('@consent_given', 'true');
-      
+
+      await AsyncStorage.setItem(CONSENT_KEY, 'true');
+
       if (!libraryGranted && !cameraGranted) {
         Alert.alert(
           'Permissions Limited',
@@ -247,25 +311,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           [{ text: 'OK' }]
         );
       }
-      
+
       setScreen('app');
       return granted;
     } catch (err) {
       console.error('Failed requesting device permissions:', err);
+      // Never strand the user on onboarding; the app degrades gracefully.
+      setScreen('app');
       return false;
     }
   };
 
   const resetData = async (toMocks: boolean) => {
-    const defaultData = toMocks ? MOCK_RECEIPTS : [];
-    await saveReceipts(defaultData);
+    // Demo data is a dev-only convenience; release builds can only clear.
+    const useMocks = toMocks && DEV_TOOLS_ENABLED;
+    const defaultData = useMocks ? MOCK_RECEIPTS : [];
+    applyReceipts(() => defaultData);
     setActiveReceiptId(null);
-    showToast(toMocks ? 'Reset to default mocks!' : 'All receipts cleared!');
+    showToast(useMocks ? 'Reset to default mocks!' : 'All receipts cleared!');
   };
 
   const showToast = (message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
     setToastMessage(message);
-    setTimeout(() => {
+    toastTimer.current = setTimeout(() => {
       setToastMessage(null);
     }, 3000);
   };
@@ -294,6 +363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateReceipt,
         archiveReceipt,
         deleteReceipt,
+        scanReceipt,
         simulateUpload,
         exportToCSV,
         requestPermissions,

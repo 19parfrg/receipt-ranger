@@ -8,8 +8,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: receipt-ranger-mobile/package-lock.json
+
+      - name: Install dependencies
+        working-directory: receipt-ranger-mobile
+        run: npm ci
+
+      - name: Type check
+        working-directory: receipt-ranger-mobile
+        run: npm run tsc
+
+      - name: Run unit tests
+        working-directory: receipt-ranger-mobile
+        run: npm test -- --ci
+
   build:
     runs-on: macos-15
+    needs: test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -66,22 +92,30 @@ jobs:
 
       - name: Send Telegram Notification
         if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets not configured; skipping notification."
+            exit 0
+          fi
+
           STATUS="${{ job.status }}"
           REPO="${{ github.repository }}"
           SHA="${{ github.sha }}"
           RUN_ID="${{ github.run_id }}"
           RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
-          
+
           if [ "$STATUS" = "success" ]; then
             EMOJI="✅"
           else
             EMOJI="❌"
           fi
-          
+
           TEXT=$(printf "📱 *iOS Build Completed*\n\n*Status*: %s %s\n*Repository*: %s\n*Commit*: \`%.7s\`\n[View Workflow Run](%s)" "${EMOJI}" "${STATUS}" "${REPO}" "${SHA}" "${RUN_URL}")
 
-          curl -s -X POST "https://api.telegram.org/bot8883448711:AAHNiWBp7V3d8CMm1RHBr4x1chAvXut-w5k/sendMessage" \
-            -d "chat_id=8053966290" \
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "parse_mode=Markdown" \
             --data-urlencode "text=${TEXT}"

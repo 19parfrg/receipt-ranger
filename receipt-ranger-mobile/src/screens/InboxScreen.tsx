@@ -9,6 +9,7 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  Linking,
 } from 'react-native';
 import { Search, Scan, ReceiptText, ShieldCheck } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,6 +17,7 @@ import { useApp } from '../context/AppContext';
 import { CATEGORIES } from '../types';
 import { ReceiptCard } from '../components/ReceiptCard';
 import { ProgressBar } from '../components/ProgressBar';
+import { DEV_TOOLS_ENABLED } from '../config/features';
 
 export const InboxScreen: React.FC = () => {
   const {
@@ -29,30 +31,43 @@ export const InboxScreen: React.FC = () => {
     setActiveCategory,
     setSearchQuery,
     setActiveReceiptId,
+    scanReceipt,
     simulateUpload,
   } = useApp();
 
   const handleScanPress = () => {
+    const options: Array<{ text: string; onPress?: () => void; style?: 'cancel' }> = [
+      {
+        text: 'Take Photo (Camera)',
+        onPress: handleCameraScan,
+      },
+      {
+        text: 'Choose from Gallery (Photos)',
+        onPress: handleGalleryScan,
+      },
+    ];
+    if (DEV_TOOLS_ENABLED) {
+      options.push({
+        text: 'Simulate Local Scan (Dev)',
+        onPress: () => simulateUpload(),
+      });
+    }
+    options.push({ text: 'Cancel', style: 'cancel' });
+
     Alert.alert(
       'Scan Receipt',
       'Choose a source to import your receipt for local on-device OCR:',
+      options
+    );
+  };
+
+  const showPermissionAlert = (what: string) => {
+    Alert.alert(
+      'Permission Needed',
+      `${what} access is required to scan receipt images. You can enable it in iOS Settings.`,
       [
-        {
-          text: 'Take Photo (Camera)',
-          onPress: handleCameraScan,
-        },
-        {
-          text: 'Choose from Gallery (Photos)',
-          onPress: handleGalleryScan,
-        },
-        {
-          text: 'Simulate Local Scan (Random)',
-          onPress: () => simulateUpload(),
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
       ]
     );
   };
@@ -60,29 +75,29 @@ export const InboxScreen: React.FC = () => {
   const handleCameraScan = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (permission.status !== 'granted') {
-      Alert.alert('Permission Denied', 'Camera access is required to capture receipt images.');
+      showPermissionAlert('Camera');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
       quality: 0.8,
     });
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      simulateUpload(result.assets[0].uri);
+      scanReceipt(result.assets[0].uri);
     }
   };
 
   const handleGalleryScan = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permission.status !== 'granted') {
-      Alert.alert('Permission Denied', 'Photo library access is required to select receipt images.');
+      showPermissionAlert('Photo Library');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.8,
     });
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      simulateUpload(result.assets[0].uri);
+      scanReceipt(result.assets[0].uri);
     }
   };
 

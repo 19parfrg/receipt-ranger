@@ -14,6 +14,7 @@ import { ArrowLeft, Store, Calendar, DollarSign, Percent, Copy, Archive, Trash2,
 import * as Clipboard from 'expo-clipboard';
 import { useApp } from '../context/AppContext';
 import { CATEGORIES } from '../types';
+import { Toast } from '../components/Toast';
 
 export const DetailScreen: React.FC = () => {
   const {
@@ -24,6 +25,7 @@ export const DetailScreen: React.FC = () => {
     archiveReceipt,
     deleteReceipt,
     showToast,
+    toastMessage,
   } = useApp();
 
   const receipt = receipts.find(r => r.id === activeReceiptId);
@@ -275,6 +277,10 @@ export const DetailScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </ScrollView>
+
+        {/* Native modals render above the root overlay, so the toast must
+            also live inside the modal to be visible while it is open. */}
+        <Toast message={toastMessage} />
       </SafeAreaView>
     </Modal>
   );

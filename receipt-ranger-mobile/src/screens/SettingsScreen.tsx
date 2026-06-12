@@ -11,6 +11,7 @@ import {
 import { Download, ShieldCheck, Database, HardDrive, RotateCcw } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { CATEGORIES } from '../types';
+import { DEV_TOOLS_ENABLED } from '../config/features';
 
 export const SettingsScreen: React.FC = () => {
   const { receipts, exportToCSV, resetData } = useApp();
@@ -28,25 +29,33 @@ export const SettingsScreen: React.FC = () => {
   });
 
   const handleResetData = () => {
+    const options: Array<{ text: string; onPress?: () => void; style?: 'cancel' | 'destructive' }> = [
+      { text: 'Cancel', style: 'cancel' },
+    ];
+    if (DEV_TOOLS_ENABLED) {
+      // Demo data is a development convenience only; it must never be
+      // reachable in a TestFlight/App Store build.
+      options.push({
+        text: 'Reset to Mocks (Dev)',
+        onPress: () => {
+          resetData(true);
+        },
+      });
+    }
+    options.push({
+      text: 'Clear All Data',
+      style: 'destructive',
+      onPress: () => {
+        resetData(false);
+      },
+    });
+
     Alert.alert(
       'Reset App Data',
-      'Choose whether to clear all receipts completely or reset back to default mock templates:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset to Mocks',
-          onPress: async () => {
-            await resetData(true);
-          },
-        },
-        {
-          text: 'Clear All Data',
-          style: 'destructive',
-          onPress: async () => {
-            await resetData(false);
-          },
-        },
-      ]
+      DEV_TOOLS_ENABLED
+        ? 'Choose whether to clear all receipts completely or reset back to default mock templates:'
+        : 'This permanently deletes every receipt stored on this device. This action cannot be undone.',
+      options
     );
   };
 
@@ -104,15 +113,15 @@ export const SettingsScreen: React.FC = () => {
             <ShieldCheck size={18} color="#10b981" style={styles.auditIcon} />
             <View style={styles.auditTextContainer}>
               <Text style={styles.auditLabel}>100% Offline Processing</Text>
-              <Text style={styles.auditDetail}>Verified: All OCR scanning is executed locally on-device.</Text>
+              <Text style={styles.auditDetail}>All OCR text recognition runs locally via the Apple Vision framework. Images never leave your device.</Text>
             </View>
           </View>
 
           <View style={styles.auditItem}>
             <Database size={18} color="#10b981" style={styles.auditIcon} />
             <View style={styles.auditTextContainer}>
-              <Text style={styles.auditLabel}>SQLite & AsyncStorage</Text>
-              <Text style={styles.auditDetail}>Verified: All receipt records are persisted in local SQL.</Text>
+              <Text style={styles.auditLabel}>Local-Only Storage</Text>
+              <Text style={styles.auditDetail}>All receipt records are persisted on-device with AsyncStorage. No accounts, no servers.</Text>
             </View>
           </View>
 
@@ -120,14 +129,14 @@ export const SettingsScreen: React.FC = () => {
             <HardDrive size={18} color="#10b981" style={styles.auditIcon} />
             <View style={styles.auditTextContainer}>
               <Text style={styles.auditLabel}>Sandboxed Storage</Text>
-              <Text style={styles.auditDetail}>Verified: Receipts cannot be accessed by external apps.</Text>
+              <Text style={styles.auditDetail}>Receipt data lives inside the iOS app sandbox and cannot be accessed by external apps.</Text>
             </View>
           </View>
         </View>
 
         {/* App Version Info and Reset */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>ReceiptRanger iOS Beta v1.0.0</Text>
+          <Text style={styles.footerText}>ReceiptRanger v1.0.0 (build 1)</Text>
           <TouchableOpacity style={styles.resetButton} onPress={handleResetData}>
             <RotateCcw size={12} color="#f87171" style={{ marginRight: 4 }} />
             <Text style={styles.resetText}>Reset or Clear Database</Text>
