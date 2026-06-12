@@ -102,13 +102,21 @@ export function parseDate(text: string): string | null {
 }
 
 const currencyValue = (line: string): number | null => {
-  // Matches $14.58, 14.58, 1,234.56 — takes the last currency-looking number
-  // on the line (label usually precedes the value on receipts).
-  const matches = line.match(/\$?\s*\d{1,3}(?:,\d{3})*\.\d{2}\b/g);
+  // Matches $14.58, 14.58, 1,234.56, and whole-dollar amounts like $14 —
+  // takes the last currency-looking number on the line (label usually
+  // precedes the value on receipts). Bare integers without a $ sign are
+  // NOT treated as currency (they're usually store/transaction numbers).
+  const matches = line.match(/\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?\b|\d{1,3}(?:,\d{3})*\.\d{2}\b/g);
   if (!matches || matches.length === 0) return null;
   const raw = matches[matches.length - 1].replace(/[$,\s]/g, '');
   const value = parseFloat(raw);
   return Number.isFinite(value) ? value : null;
+};
+
+/** Today's date in the device's local timezone, as YYYY-MM-DD. */
+export const todayLocalISO = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
 /**
@@ -149,7 +157,7 @@ export function parseReceiptText(lines: string[]): ParsedReceipt {
 
   return {
     merchant,
-    date: parseDate(fullText) || new Date().toISOString().split('T')[0],
+    date: parseDate(fullText) || todayLocalISO(),
     amount,
     tax,
     category: classifyText(fullText),
@@ -158,11 +166,12 @@ export function parseReceiptText(lines: string[]): ParsedReceipt {
   };
 }
 
-const simulatedParse = (): ParsedReceipt => {
+/** Dev-only canned scan result; also used by the dev "simulate scan" tool. */
+export const simulatedParse = (): ParsedReceipt => {
   const template = MOCK_OCR_TEMPLATES[Math.floor(Math.random() * MOCK_OCR_TEMPLATES.length)];
   return {
     merchant: template.merchant,
-    date: new Date().toISOString().split('T')[0],
+    date: todayLocalISO(),
     amount: template.amount,
     tax: template.tax,
     category: template.category,

@@ -38,7 +38,7 @@ cd receipt-ranger-mobile
 npm install
 npm run ios        # Expo dev server (OCR falls back to simulated data in Expo Go)
 npm run tsc        # strict type-check
-npm test           # 4 suites / 42 tests (Jest + jest-expo + RNTL)
+npm test           # 4 suites / 45 tests (Jest + jest-expo + RNTL)
 ```
 
 See `receipt-ranger-mobile/TEST_INFRA.md` for the testing stack and

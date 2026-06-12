@@ -6,8 +6,8 @@ import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Receipt, CategoryType, ScreenName, TabName } from '../types';
-import { MOCK_RECEIPTS, MOCK_OCR_TEMPLATES } from '../data/mockReceipts';
-import { performOCR, ParsedReceipt } from '../services/OCRService';
+import { MOCK_RECEIPTS } from '../data/mockReceipts';
+import { performOCR, simulatedParse, ParsedReceipt } from '../services/OCRService';
 import { DEV_TOOLS_ENABLED } from '../config/features';
 
 const RECEIPTS_KEY = '@receipts';
@@ -219,19 +219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentProgress += 10;
       if (currentProgress >= 100) {
         clearProgressTimer();
-        const template = MOCK_OCR_TEMPLATES[Math.floor(Math.random() * MOCK_OCR_TEMPLATES.length)];
-        finishScan(
-          {
-            merchant: template.merchant,
-            date: new Date().toISOString().split('T')[0],
-            amount: template.amount,
-            tax: template.tax,
-            category: template.category,
-            ocrText: template.ocrText,
-            simulated: true,
-          },
-          undefined
-        );
+        finishScan(simulatedParse());
         setIsUploading(false);
         setUploadProgress(0);
       } else {

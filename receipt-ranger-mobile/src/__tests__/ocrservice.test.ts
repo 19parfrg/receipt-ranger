@@ -1,4 +1,4 @@
-import { classifyText, parseDate, parseReceiptText, performOCR } from '../services/OCRService';
+import { classifyText, parseDate, parseReceiptText, performOCR, todayLocalISO } from '../services/OCRService';
 
 describe('OCRService.classifyText — keyword precedence', () => {
   it('classifies travel receipts', () => {
@@ -93,14 +93,29 @@ describe('OCRService.parseReceiptText', () => {
     expect(parseReceiptText(lines).amount).toBe(9.99);
   });
 
+  it('parses whole-dollar amounts without cents', () => {
+    const lines = ['CORNER STORE', 'Total: $14'];
+    expect(parseReceiptText(lines).amount).toBe(14);
+  });
+
+  it('does not mistake bare store/transaction numbers for currency', () => {
+    const lines = ['SHELL OIL CO', 'Station #8472911', 'Total: $55.00'];
+    expect(parseReceiptText(lines).amount).toBe(55);
+  });
+
   it('zeroes tax when the parsed tax exceeds the total (misread guard)', () => {
     const lines = ['STORE', 'Tax: $50.00', 'Total: $10.00'];
     expect(parseReceiptText(lines).tax).toBe(0);
   });
 
-  it('defaults date to today when no date is present', () => {
-    const today = new Date().toISOString().split('T')[0];
-    expect(parseReceiptText(['STORE', 'Total: $5.00']).date).toBe(today);
+  it('defaults date to today (device-local timezone) when no date is present', () => {
+    expect(parseReceiptText(['STORE', 'Total: $5.00']).date).toBe(todayLocalISO());
+  });
+
+  it('todayLocalISO uses local time, not UTC', () => {
+    const now = new Date();
+    const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    expect(todayLocalISO()).toBe(expected);
   });
 
   it('handles thousands separators', () => {
